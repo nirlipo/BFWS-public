@@ -1,0 +1,49 @@
+import os
+
+lapkt_base_dir = os.environ.get('LAPKT_PATH')
+
+if lapkt_base_dir is None:
+	sys.exit("ERROR: define Environmental Variable!\n export LAPKT_PATH = \"LAPKT_root_folder_location\"")
+
+
+debug = ARGUMENTS.get('debug', 0)
+common_env = Environment()
+
+include_paths =  [ os.path.join( lapkt_base_dir,'include') ]
+include_paths += [ os.path.join( lapkt_base_dir,'interfaces/agnostic') ]
+include_paths += [ os.path.join( lapkt_base_dir,'interfaces/ff-wrapped') ]
+include_paths += [ os.path.join( lapkt_base_dir,'external') ]
+include_paths += [ '/usr/local/include' ]
+
+lib_paths = [ ]
+libs = [ 'boost_program_options' ]
+
+common_env.Append( CPPPATH = [ os.path.abspath(p) for p in include_paths ] )
+common_env.Append( CCFLAGS = [ '-Wall', '-std=c++11', '-fPIC' ] )
+
+if int(debug) == 1 :
+	common_env.Append( CCFLAGS = ['-g', '-DDEBUG' ] )
+elif int(debug) == 2 :
+        common_env.Append( CCFLAGS = ['-g', '-DNDEBUG' ] )
+else:
+	common_env.Append( CCFLAGS = ['-O3', '-DNDEBUG'] )
+
+
+Export('common_env')
+
+# LAPKT files
+generic_objs = SConscript(os.path.join( lapkt_base_dir,'src/SConscript.aptk'))
+agnostic_objs = SConscript(os.path.join( lapkt_base_dir,'interfaces/agnostic/SConscript.agnostic'))
+python_objs = SConscript(os.path.join( lapkt_base_dir,'planners/python/agnostic/SConscript.python'))
+
+# MAIN using FD parser
+fd_planner_objs = SConscript('src/SConscript')
+
+# COMMON Planner files
+planner_objs = SConscript('../src/SConscript')
+
+common_env.Append( LIBS=libs)
+common_env.Append( LIBPATH=[ os.path.abspath(p) for p in lib_paths ] )
+
+common_env.SharedLibrary( 'bfws.so',  planner_objs +  fd_planner_objs + generic_objs + agnostic_objs + python_objs  )
+

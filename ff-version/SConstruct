@@ -1,0 +1,34 @@
+import os
+
+lapkt_base_dir = os.environ.get('LAPKT_PATH')
+
+if lapkt_base_dir is None:
+	sys.exit("ERROR: define Environmental Variable!\n export LAPKT_PATH = \"LAPKT_root_folder_location\"")
+
+debug = ARGUMENTS.get( 'debug', 0 )
+common_env = Environment(ENV = os.environ)
+
+common_env.Append( CCFLAGS = [ '-Wall', '-std=c++11' ] )
+common_env.Append( LINKFLAGS = [ '-static' ] )
+
+if int(debug) == 1 :
+        common_env.Append( CCFLAGS = ['-g',  '-DDEBUG' ] )
+elif int(debug) == 2 :
+        common_env.Append( CCFLAGS = ['-g',  '-DNDEBUG' ] )
+else:
+        common_env.Append( CCFLAGS = ['-O3', '-DNDEBUG'] )
+
+Export( 'common_env' )
+
+# LAPKT files
+generic_objs = SConscript(os.path.join( lapkt_base_dir,'src/SConscript.aptk'))
+agnostic_objs = SConscript(os.path.join( lapkt_base_dir,'interfaces/agnostic/SConscript.agnostic'))
+ff_wrapper_objs = SConscript(os.path.join( lapkt_base_dir,'interfaces/ff-wrapped/SConscript.ff'))
+
+# MAIN using FF parser
+main_objs = SConscript('src/SConscript')
+
+# COMMON Trapper files
+bfws_objs = SConscript('../src/SConscript')
+
+common_env.Program( 'bfws', main_objs + generic_objs + agnostic_objs + ff_wrapper_objs + bfws_objs ) 
