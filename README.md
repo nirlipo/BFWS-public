@@ -31,12 +31,12 @@ These are Trapper options
 ```
   ./bfws --help
 
-Specify these arguments before the Search Alg. Options::
+Options::
   --help                                Show help message. 
   --domain arg                          Input PDDL domain description
   --problem arg                         Input PDDL problem description
   --output arg                          Output file for plan
-  --max_novelty arg                     Max width w for novelty (default 2)
+  --max_novelty arg (=2)                Max width w for novelty (default 2)
 
 Search Algorithms::
   --DUAL-BFWS arg (=1)                  1-BFWS first, then BFWS using h_ff and h_landcount as in AAAI-17 paper
@@ -53,6 +53,7 @@ Polynomial Search Algorithms::
   --k-C-BFWS arg (=0)                   k-BFWS with goal consistency count
   --k-M-BFWS arg (=0)                   Allowing (M) nodes > novelty bound() for each node with novelty <= bound()
   --k-M-C-BFWS arg (=0)                 k-M-C-BFWS with goal consistency
+
 ```
 The command to run the FF-parser-version of BFWS, computing novelty 1,2, and greater than 2, and pruning nodes with novelty greater than 2
 ```
