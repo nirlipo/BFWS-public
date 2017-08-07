@@ -9,7 +9,7 @@ Yoy also need to define LAPKT_PATH as an enviromnent variable. Add the following
 ```
   export LAPKT_PATH = /Absolute-path-to-LAPKT-folder
 ```
-Trapper can run using either FF or FD parser.
+BFWS can run using either FF or FD parser.
 
 ### FF-parser version ###
 
@@ -25,9 +25,9 @@ Go to FD-parser-version folder and type to compile
 ```
   ./build.py 
 ```
-# Running Trapper #
+# Running BFWS #
 
-These are Trapper options
+These are BFWS options
 ```
   ./bfws --help
 
