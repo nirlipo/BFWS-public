@@ -268,6 +268,7 @@ void process_command_line_options( int ac, char** av, po::variables_map& vars ) 
 		( "problem", po::value<std::string>(), "Input PDDL problem description" )
 		( "output", po::value<std::string>(), "Output file for plan" )
 		( "max_novelty", po::value<int>()->default_value(2), "Max width w for novelty (default 2)")
+		( "ignore_costs", po::value<bool>()->default_value(true), "Ignore action costs")
 		;
 	po::options_description desc_search( "Search Algorithms:",135,260 );
 	
@@ -357,7 +358,7 @@ int main( int argc, char** argv ) {
 
 
 	STRIPS_Problem	prob;
-	bool ignore_costs = true;
+	bool ignore_costs = vm["ignore_costs"].as<bool>();
 
 	aptk::FF_Parser::get_problem_description( vm["domain"].as<std::string>(), vm["problem"].as<std::string>(), prob, ignore_costs  );
 	std::cout << "PDDL problem description loaded: " << std::endl;
