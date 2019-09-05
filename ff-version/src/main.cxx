@@ -428,6 +428,10 @@ int main( int argc, char** argv ) {
 		
 		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
 
+		plan_stream.close();
+		
+		return 0;
+
 	}
 	else 	if(vm["BFWS-f5"].as<bool>()){
 		
@@ -440,6 +444,8 @@ int main( int argc, char** argv ) {
 		float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
 		
 		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+		return 0;
 
 	}
 	else 	if(vm["BFWS-f5-initstate-relevant"].as<bool>()){
@@ -455,6 +461,8 @@ int main( int argc, char** argv ) {
 		float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
 		
 		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+		return 0;
 
 	}
 	else 	if(vm["k-BFWS"].as<bool>()){
@@ -572,6 +580,8 @@ int main( int argc, char** argv ) {
 		
 		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
 
+		plan_stream.close();
+		
 		return 0;
         }
  

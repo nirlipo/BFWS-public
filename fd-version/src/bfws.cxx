@@ -195,6 +195,10 @@ BFWS::solve() {
 		
 		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
 
+		plan_stream.close();
+
+		return;
+
 	}
 	else 	if(m_search_alg.compare("BFWS-f5") == 0 ){
 		
@@ -207,6 +211,10 @@ BFWS::solve() {
 		float bfs_t = do_search( bfs_engine, *prob, plan_stream, found_plan );
 		
 		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+		plan_stream.close();
+
+		return;
 
 	}
 	else 	if( m_search_alg.compare("BFWS-f5-initstate-relevant") == 0 ){
@@ -222,6 +230,10 @@ BFWS::solve() {
 		float bfs_t = do_search( bfs_engine, *prob, plan_stream, found_plan );
 		
 		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+		plan_stream.close();
+
+		return;
 
 	}
 	else 	if( m_search_alg.compare("k-BFWS") == 0 ){
@@ -332,6 +344,8 @@ BFWS::solve() {
 		
 		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
 
+		plan_stream.close();
+				
 		return;
         }
  
