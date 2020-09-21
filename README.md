@@ -3,7 +3,7 @@ Best First Width Search Planner
 
 ### Getting Started ###
 
-You first need to install LAPKT by following this instructions: http://lapkt.org/index.php?title=Download
+You first need to install LAPKT by following this instructions: https://lapkt-dev.github.io/docs/gettingStarted/
 
 Yoy also need to define LAPKT_PATH as an enviromnent variable. Add the following line to your .bash or .profile file or simply execute it in your terminal:
 ```
