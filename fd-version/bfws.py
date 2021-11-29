@@ -9,7 +9,7 @@ from libbfws import BFWS
 def main( domain_file, problem_file, search_alg ) :
 	task = BFWS( )
 
-        task.ignore_action_costs = True
+	task.ignore_action_costs = True
         
 	fd.grounding.default( domain_file, problem_file, task )
 
@@ -26,11 +26,11 @@ def main( domain_file, problem_file, search_alg ) :
 	# NIR: search alg
 	task.search = search_alg
 
-        # NIR: Set Max novelty to 2
-        task.max_novelty = 2
+	# NIR: Set Max novelty to 2
+	task.max_novelty = 2
 
-        # NIR: Set M to 32
-        task.m_value = 32
+	# NIR: Set M to 32
+	task.m_value = 32
         
 	# NIR: Comment line below to deactivate profiling
 	#profiler_start( 'bfws.prof' )
