@@ -6,7 +6,10 @@ from libbfws import BFWS
 # NIR: Profiler imports
 #import yep
 
-def main( domain_file, problem_file, output, cost_bound = -1 ) :
+ALIASES = {}
+
+
+def main( domain_file, problem_file, output ) :
 	task = BFWS( )
 
 	#NIR: Costs are parsed, but the search ignores action costs. If set to True, it will report plan length        
@@ -23,14 +26,10 @@ def main( domain_file, problem_file, output, cost_bound = -1 ) :
 	
 	# NIR: log and plan filename set
 	task.log_filename = 'bfws.log'
-	task.plan_filename = output
+	task.plan_filename = output+".1"
 
 	# NIR: search alg
-	task.search = "DUAL-BFWS"
-
-	# NIR: set cost bound
-	if cost_bound != -1:
-		task.cost_bound = cost_bound + 0.1
+	task.search = "BFWS-f5"
 
 	# NIR: Set Max novelty to 2
 	#task.max_novelty = 2
@@ -54,6 +53,11 @@ def main( domain_file, problem_file, output, cost_bound = -1 ) :
 	#if rv != 0 :
 	#	print >> sys.stderr, "An error occurred while translating google-perftools profiling information into valgrind format"
 
+	#NIR: call FD implementation of Restarting WAstar
+
+
+	fd_cmd =  "/planner/Fast-Downward-2018-2/fast-downward.py --build release32 --alias lazy-rwastar --plan-file {} --external-bound {} {} {}".format(output, int(task.plan_cost),domain_file, problem_file)
+	os.system(fd_cmd)
 
 def debug() :
 	main( "domain.pddl",
@@ -61,9 +65,5 @@ def debug() :
               "solution" )
 
 if __name__ == "__main__":
-
-        if len(sys.argv) == 5:
-	        main( sys.argv[1], sys.argv[2], sys.argv[3], float(sys.argv[4]) )
-        else:
-                main( sys.argv[1], sys.argv[2], sys.argv[3])
+	main( sys.argv[1], sys.argv[2], sys.argv[3] )
 

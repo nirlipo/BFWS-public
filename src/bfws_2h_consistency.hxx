@@ -76,8 +76,10 @@ public:
 			
 		this->eval(this->m_root);
 		
-		if(this->m_use_rp)
+		if(this->m_use_rp){
+			this->eval_rp(this->m_root);
 			this->eval_relevant_fluents( this->m_root );
+		}
 		
 		if(this->m_use_novelty)
 			this->eval_novel( this->m_root );				
@@ -117,22 +119,7 @@ public:
 		
 		
 		candidate->h2n() =  consistent_goal_counting( candidate );
-
-		
-		
-		if(candidate->parent() && candidate->h2n() < candidate->parent()->h2n() ){
-			if( ! candidate->has_state() ){
-				static Fluent_Vec added, deleted;
-				added.clear(); deleted.clear();
-				candidate->parent()->state()->progress_lazy_state(  this->problem().task().actions()[ candidate->action() ], &added, &deleted  );	
-				this->set_relplan( candidate, candidate->parent()->state() );
-				candidate->parent()->state()->regress_lazy_state(  this->problem().task().actions()[ candidate->action() ], &added, &deleted );					
-			}
-			else
-				this->set_relplan( candidate, candidate->state() );
-			
-		}
-		
+			       				
 		if(candidate->h2n() < this->m_max_h2n ){
 			this->m_max_h2n = candidate->h2n();
 			this->m_max_r = 0;

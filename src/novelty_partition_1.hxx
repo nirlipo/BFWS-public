@@ -18,8 +18,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef __NOVELTY_PARTITION_2__
-#define __NOVELTY_PARTITION_2__
+#ifndef __NOVELTY_PARTITION__
+#define __NOVELTY_PARTITION__
 
 #include <aptk/search_prob.hxx>
 #include <aptk/heuristic.hxx>
@@ -28,6 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <strips_prob.hxx>
 #include <vector>
 #include <deque>
+#include <algorithm>   
 
 namespace aptk {
 
@@ -35,18 +36,18 @@ namespace agnostic {
 
 
 template <typename Search_Model, typename Search_Node >
-class Novelty_Partition_2 : public Heuristic<State>{
+class Novelty_Partition : public Heuristic<State>{
 public:
 
 
-	Novelty_Partition_2( const Search_Model& prob, unsigned max_arity = 1, const unsigned max_MB = 2048 ) 
-	    : Heuristic<State>( prob ), m_strips_model( prob.task() ), m_max_memory_size_MB(max_MB), m_always_full_state(false), m_verbose( true ), m_partition_size(0) {
+	Novelty_Partition( const Search_Model& prob, unsigned max_arity = 1, const unsigned max_MB = 2048 ) 
+		: Heuristic<State>( prob ), m_strips_model( prob.task() ), m_max_memory_size_MB(max_MB), m_always_full_state(false), m_partition_size(0), m_verbose( true ) {
 		
 		set_arity(max_arity, 1);
 		
 	}
 
-	virtual ~Novelty_Partition_2() {
+	virtual ~Novelty_Partition() {
 		typedef typename std::vector<std::vector< Fluent_Set* >*>::iterator        Node_2Vec_Ptr_It;
 		typedef typename std::vector< Fluent_Set* >::iterator        Node_Vec_Ptr_It;
 
@@ -60,7 +61,6 @@ public:
 			}
 			delete *it_2p;
 		}
-
 	}
 
 
@@ -86,9 +86,9 @@ public:
 
 	void set_verbose( bool v ) { m_verbose = v; }
 
-        unsigned& partition_size() { return m_partition_size;}
-    
-	void set_arity( unsigned max_arity, unsigned partition_size ){
+	unsigned& partition_size() {return m_partition_size;}
+	
+	void set_arity( unsigned max_arity, unsigned partition_size = 0 ){
 
 		if(max_arity > 2) {
 			std::cerr << "Maximum novelty table allowed for tuples of size 2!" << std::endl;
@@ -130,7 +130,7 @@ public:
 				}
 			}
 
-		}		
+		}
 	}
 	
 
@@ -160,23 +160,22 @@ public:
 
 protected:
 
-	void check_table_size( Search_Node* n ){
+	void check_table_size( Search_Node* n ){		
 
-		
-	    	if( m_partition_size < n->partition2() ){
-	    		m_nodes_tuples1_by_partition.resize( n->partition2() + 1 );
+	    	if( m_partition_size < n->partition() ){
+	    		m_nodes_tuples1_by_partition.resize( n->partition() + 1 );
 			if(m_arity == 2){
-				m_nodes_tuples2_by_partition.resize( n->partition2() + 1 );
-				m_nodes_tuples2_by_partition[ n->partition2() ] = new std::vector< Fluent_Set* >( m_num_tuples + 1 );
+				m_nodes_tuples2_by_partition.resize( n->partition() + 1 );
+				m_nodes_tuples2_by_partition[ n->partition() ] = new std::vector< Fluent_Set* >( m_num_tuples + 1 );
 			}
-	    		m_partition_size = n->partition2();
+	    		m_partition_size = n->partition();
 	    	}
 	
-		if(  m_nodes_tuples1_by_partition[ n->partition2() ] == NULL ){
-			m_nodes_tuples1_by_partition[ n->partition2() ] = new Fluent_Set( m_num_tuples );
+		if(  m_nodes_tuples1_by_partition[ n->partition() ] == NULL ){
+			m_nodes_tuples1_by_partition[ n->partition() ] = new Fluent_Set( m_num_tuples );
 			if(m_arity == 2){
-				if(m_nodes_tuples2_by_partition[ n->partition2() ] == NULL )
-					m_nodes_tuples2_by_partition[ n->partition2() ] = new std::vector< Fluent_Set* >( m_num_tuples + 1 );
+				if(m_nodes_tuples2_by_partition[ n->partition() ] == NULL )
+					m_nodes_tuples2_by_partition[ n->partition() ] = new std::vector< Fluent_Set* >( m_num_tuples + 1 );
 		
 			}
 		}
@@ -184,17 +183,17 @@ protected:
 
 	/**
 	 * If parent node is in the same space partition, check only new atoms,
-	 * otherwise check all atoms in state
+	 * otherwise check all oatoms in state
 	 */
 	void compute(  Search_Node* n, unsigned& novelty ) 
 	{
 
 		novelty = (float) m_arity+1;
 
-		if( n->partition2() == std::numeric_limits<unsigned>::max() ) return;
+		if( n->partition() == std::numeric_limits<unsigned>::max() ) return;
 		
 		check_table_size( n );
-		
+	       
 		for(unsigned i = 1; i <= m_arity; i++){
 #ifdef DEBUG
 			if ( m_verbose )
@@ -202,10 +201,14 @@ protected:
 #endif 	
 			
 			bool new_covers;
+
 			if(n->parent() == nullptr || m_always_full_state)
 				new_covers = cover_tuples( n, i );
 			else
-				new_covers = (n->partition2() == n->parent()->partition2()) ?  cover_tuples_op( n, i ) : cover_tuples( n, i );			
+				new_covers = (n->partition() == n->parent()->partition()) ?  cover_tuples_op( n, i ) : cover_tuples( n, i );
+
+
+			
 #ifdef DEBUG
 			if(m_verbose && !new_covers)	
 				std::cout << "\t \t PRUNE! search node: "<<&(n)<<std::endl;
@@ -216,6 +219,7 @@ protected:
 		}
 	}
 
+		
 	inline void set_union( Bit_Set* table, Bit_Set& other, bool& new_covers ) {
 		assert( table->max_index() == other.max_index()  );
 		assert( table->bits().npacks() == other.bits().npacks() );
@@ -229,11 +233,10 @@ protected:
 		}
 	}
 	
-
 	bool cover_tuples( Search_Node* n, unsigned arity  )
 	{
 		const bool has_state = n->has_state();
-		
+
 		static Fluent_Vec added;
 		static Fluent_Vec deleted;
 		if(!has_state){
@@ -248,11 +251,11 @@ protected:
 		bool new_covers = false;
        	
 		if(arity == 1){
-			Fluent_Set* table = m_nodes_tuples1_by_partition[ n->partition2() ];
+			Fluent_Set* table = m_nodes_tuples1_by_partition[ n->partition() ];
 			set_union(table , fl_set, new_covers);
 		}
 		else{
-			std::vector<Fluent_Set*>& tables = *(m_nodes_tuples2_by_partition[ n->partition2() ]); 
+			std::vector<Fluent_Set*>& tables = *(m_nodes_tuples2_by_partition[ n->partition() ]); 
 			for(auto fl_idx : fl){
 				if(tables[fl_idx] == NULL)
 					tables[fl_idx] = new Fluent_Set( m_num_tuples );
@@ -262,8 +265,9 @@ protected:
 			}
 		}
 
-		if(!has_state)	
-			n->parent()->state()->regress_lazy_state( m_strips_model.actions()[ n->action() ], &added, &deleted );		
+		if(!has_state)
+			n->parent()->state()->regress_lazy_state( m_strips_model.actions()[ n->action() ], &added, &deleted );
+		
 		return new_covers;
 
 	}
@@ -309,13 +313,16 @@ protected:
 		  }
 
 		const Fluent_Vec& add = a->has_ceff() ? new_atom_vec : a->add_vec();
-        
-		//n->parent()->state()->progress_lazy_state(  m_strips_model.actions()[ n->action() ]);
+
+		//	if(!has_state && arity == 2)
+		//	n->parent()->state()->progress_lazy_state(  m_strips_model.actions()[ n->action() ]);
+		
+
 		Fluent_Vec& fl = has_state ? n->state()->fluent_vec() : n->parent()->state()->fluent_vec();      
 
 		std::vector<Fluent_Set*>* tables = NULL;
 		if(arity == 2 )
-			tables = m_nodes_tuples2_by_partition[ n->partition2() ]; 
+			tables = m_nodes_tuples2_by_partition[ n->partition() ]; 
 					
 		
 		bool new_covers = false;
@@ -327,9 +334,9 @@ protected:
 			{
 
 				if(arity == 1){
-					if (! m_nodes_tuples1_by_partition[ n->partition2() ]->isset(*it_add) ) {
+					if (! m_nodes_tuples1_by_partition[ n->partition() ]->isset(*it_add) ) {
 						
-						m_nodes_tuples1_by_partition[ n->partition2() ]->set(*it_add);
+						m_nodes_tuples1_by_partition[ n->partition() ]->set(*it_add);
 						new_covers = true;
 
 
@@ -347,6 +354,7 @@ protected:
 
 				}
 				else{
+
 					for(auto fl_idx : fl){
 						unsigned min = *it_add;
 						unsigned max = fl_idx;
@@ -382,8 +390,8 @@ protected:
 
 				
 			}
- 
-		//if(!has_state)
+
+		//if(!has_state  && arity == 2)
 		//	n->parent()->state()->regress_lazy_state( m_strips_model.actions()[ n->action() ] );
 		
 		return new_covers;
@@ -399,8 +407,8 @@ protected:
 	unsigned                m_num_fluents;
 	unsigned                m_max_memory_size_MB;
 	bool                    m_always_full_state;
-	bool			m_verbose;
         unsigned                m_partition_size;
+	bool			m_verbose;
 };
 
 
@@ -408,4 +416,4 @@ protected:
 
 }
 
-#endif // novelty_partition_2.hxx
+#endif // novelty_partition.hxx

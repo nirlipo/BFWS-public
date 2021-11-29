@@ -32,7 +32,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <strips_state.hxx>
 #include <fwd_search_prob.hxx>
 
-#include <novelty_partition.hxx>
+
 #include <landmark_graph.hxx>
 #include <landmark_graph_generator.hxx>
 #include <landmark_graph_manager.hxx>
@@ -51,6 +51,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 //NIR: Files adapted from LAPKT
+#include "novelty_partition_1.hxx"
 #include "novelty_partition_2.hxx"
 #include "ff_rp_heuristic.hxx"
 #include "rp_heuristic_bfws.hxx"
@@ -61,7 +62,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "bfws_2h_M.hxx"
 #include "bfws_2h_consistency.hxx"
 #include "bfws_2h_consistency_M.hxx"
-
 
 #include "new_node_comparer.hxx"
 
@@ -89,7 +89,6 @@ using 	aptk::agnostic::H1_Heuristic;
 using   aptk::agnostic::Layered_H_Max;
 
 using	aptk::agnostic::H_Add_Evaluation_Function;
-using	aptk::agnostic::H_Max_Evaluation_Function;
 using	aptk::agnostic::Relaxed_Plan_Heuristic;
 using   aptk::agnostic::FF_Relaxed_Plan_Heuristic;
 
@@ -159,18 +158,25 @@ typedef         FF_Relaxed_Plan_Heuristic< Fwd_Search_Problem, Alt_H_Max, unsign
 // NIR: Now we're ready to define the BFS algorithm we're going to use, H_Lmcount can be used only with goals,
 // or with landmarks computed from s0
  typedef	BFWS_2H< Fwd_Search_Problem, H_Novel_Fwd_2h, H_Lmcount_Fwd, H_Add_Rp_Fwd,  BFS_Open_List_2h>                       k_BFWS;
+ typedef	BFWS_2H< Fwd_Search_Problem, H_Novel_Fwd_2h, H_Lmcount_Fwd, Classic_FF_H_Max,  BFS_Open_List_2h>                   k_BFWS_hff;
+
  typedef	BFWS_2H_M< Fwd_Search_Problem, H_Novel_Fwd_2h, H_Lmcount_Fwd, H_Add_Rp_Fwd,  BFS_Open_List_2h >                    k_BFWS_M;
+ typedef	BFWS_2H_M< Fwd_Search_Problem, H_Novel_Fwd_2h, H_Lmcount_Fwd, Classic_FF_H_Max,  BFS_Open_List_2h>                 k_BFWS_M_hff;
+
  typedef        BFWS_4H< Fwd_Search_Problem, H_Novel_Fwd_4h, H_Lmcount_Fwd, H_Novel_2_Fwd_4h, H_Add_Rp_Fwd,  BFS_Open_List_4h >    BFWS_w_hlm_hadd;
+ typedef        BFWS_4H< Fwd_Search_Problem, H_Novel_Fwd_4h, H_Lmcount_Fwd, H_Novel_2_Fwd_4h, Classic_FF_H_Max, BFS_Open_List_4h > BFWS_w_hlm_hff;
 
 // NIR: Consistency Search variants
- typedef	BFWS_2H_Consistency< Fwd_Search_Problem, H_Novel_Fwd_2h, H_Lmcount_Fwd, H_Add_Rp_Fwd,  BFS_Open_List_2h >    k_BFWS_Consistency;
- typedef	BFWS_2H_Consistency_M< Fwd_Search_Problem, H_Novel_Fwd_2h, H_Lmcount_Fwd, H_Add_Rp_Fwd, BFS_Open_List_2h >   k_BFWS_Consistency_M;
+ typedef	BFWS_2H_Consistency< Fwd_Search_Problem, H_Novel_Fwd_2h, H_Lmcount_Fwd, H_Add_Rp_Fwd,  BFS_Open_List_2h >       k_BFWS_Consistency;
+ typedef	BFWS_2H_Consistency< Fwd_Search_Problem, H_Novel_Fwd_2h, H_Lmcount_Fwd, Classic_FF_H_Max, BFS_Open_List_2h >    k_BFWS_Consistency_hff;
+ typedef	BFWS_2H_Consistency_M< Fwd_Search_Problem, H_Novel_Fwd_2h, H_Lmcount_Fwd, H_Add_Rp_Fwd, BFS_Open_List_2h >      k_BFWS_Consistency_M;
+ typedef	BFWS_2H_Consistency_M< Fwd_Search_Problem, H_Novel_Fwd_2h, H_Lmcount_Fwd, Classic_FF_H_Max, BFS_Open_List_2h >  k_BFWS_Consistency_M_hff;
 
 
 
 
 template <typename Search_Engine>
-void bfws_options( Fwd_Search_Problem&	search_prob, Search_Engine& bfs_engine, unsigned& max_novelty, Landmarks_Graph& graph){
+void bfws_options( Fwd_Search_Problem&	search_prob, Search_Engine& bfs_engine, unsigned& max_novelty, Landmarks_Graph& graph, po::variables_map& vm){
 
 	bfs_engine.set_max_novelty( max_novelty );
 	bfs_engine.set_use_novelty( true );
@@ -181,11 +187,20 @@ void bfws_options( Fwd_Search_Problem&	search_prob, Search_Engine& bfs_engine, u
 	bfs_engine.use_land_graph_manager( lgm );
 
 	//NIR: Approximate the domain of #r counter, so we can initialize the novelty table, making sure we've got
-	//     space for novelty > 1 tuples 
-	H_Add_Rp_Fwd hadd( search_prob );
+	//     space for novelty > 1 tuples
 	float h_init=0;
-	const aptk::State* s_0 = search_prob.init();
-	hadd.eval( *s_0, h_init );
+	if(vm["use-hff"].as<bool>()){
+		unsigned h_val=0;
+		Classic_FF_H_Max hff( search_prob );
+		const aptk::State* s_0 = search_prob.init();
+		hff.eval( *s_0, h_val );
+		if ( h_val == std::numeric_limits<unsigned>::max() ) h_init = std::numeric_limits<float>::max();
+		else h_init = (float) h_val;
+	}else{
+		H_Add_Rp_Fwd hadd( search_prob );
+		const aptk::State* s_0 = search_prob.init();
+		hadd.eval( *s_0, h_init );	
+	}
 	
 	bfs_engine.set_arity( max_novelty, graph.num_landmarks()*h_init );
 
@@ -268,7 +283,7 @@ void process_command_line_options( int ac, char** av, po::variables_map& vars ) 
 		( "problem", po::value<std::string>(), "Input PDDL problem description" )
 		( "output", po::value<std::string>(), "Output file for plan" )
 		( "max_novelty", po::value<int>()->default_value(2), "Max width w for novelty (default 2)")
-		( "ignore_costs", po::value<bool>()->default_value(true), "Ignore action costs")
+		( "use-hff", po::value<bool>()->default_value(false), "By default the delete relaxed heuristic is rp(h_add) instead of h_ff")
 		;
 	po::options_description desc_search( "Search Algorithms:",135,260 );
 	
@@ -300,6 +315,8 @@ void process_command_line_options( int ac, char** av, po::variables_map& vars ) 
 			"Allowing (M) nodes > novelty bound() for each node with novelty <= bound()" )
 		( "k-M-C-BFWS", po::value<int>()->default_value(0),
 			"k-M-C-BFWS with goal consistency" )
+		( "Poly-Seq-BFWS", po::value<bool>()->default_value(false),
+			"1-BFWS, 2-C-BFWS, and 2-M-BFWS, M=1,2,4,..,32" )
 		;
 
 	po::options_description all_desc;
@@ -323,6 +340,7 @@ void process_command_line_options( int ac, char** av, po::variables_map& vars ) 
 	}
 
 }
+
 
 void report_no_solution( std::string reason, std::ofstream& plan_stream ) {
 	plan_stream << ";; No solution found" << std::endl;
@@ -358,7 +376,7 @@ int main( int argc, char** argv ) {
 
 
 	STRIPS_Problem	prob;
-	bool ignore_costs = vm["ignore_costs"].as<bool>();
+	bool ignore_costs = true;
 
 	aptk::FF_Parser::get_problem_description( vm["domain"].as<std::string>(), vm["problem"].as<std::string>(), prob, ignore_costs  );
 	std::cout << "PDDL problem description loaded: " << std::endl;
@@ -367,6 +385,22 @@ int main( int argc, char** argv ) {
 	std::cout << "\t#Actions: " << prob.num_actions() << std::endl;
 	std::cout << "\t#Fluents: " << prob.num_fluents() << std::endl;
 
+	//Print grounded actions into a file
+	// std::ofstream	grounded_actions_file;
+	// grounded_actions_file.open("actions.log");
+	// //prob.print_actions( grounded_actions_file );
+	// for(auto a : prob.actions()){
+	// 	grounded_actions_file << a->signature() << " #prec: "<< a->prec_vec().size();
+	// 	unsigned nceff = 0;
+	// 	for( auto ce : a->ceff_vec() ){
+	// 		nceff += ce->prec_vec().size();
+	// 	}
+
+	// 	grounded_actions_file << " $CePrec: " << nceff		 <<std::endl;
+	// 	a->print(prob,grounded_actions_file);
+	// }
+	// grounded_actions_file.close();
+	
 	Fwd_Search_Problem	search_prob( &prob );
 
 	prob.compute_edeletes();	
@@ -390,28 +424,53 @@ int main( int argc, char** argv ) {
 	unsigned max_novelty  = vm["max_novelty"].as<int>();
 		
 	if(vm["BFWS-f5-landmarks"].as<bool>()){
-		
-		std::cout << "Starting search with BFWS-f5-landmarks..." << std::endl;
+
+		if(vm["use-hff"].as<bool>()){
+			std::cout << "Starting search with BFWS-f5-landmarks with hff..." << std::endl;
 			
-		k_BFWS bfs_engine( search_prob );	
+			k_BFWS_hff bfs_engine( search_prob );	
 		
-		/**
-		 * Use landmark count instead of goal count
-		 */
-		Gen_Lms_Fwd    gen_lms( search_prob );
-		gen_lms.set_only_goals( false );
-		Landmarks_Graph graph1( prob );
-		gen_lms.compute_lm_graph_set_additive( graph1 );
-
-		bfws_options( search_prob, bfs_engine, max_novelty, graph1 );
-				
-		float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			/**
+			 * Use landmark count instead of goal count
+			 */
+			Gen_Lms_Fwd    gen_lms( search_prob );
+			gen_lms.set_only_goals( false );
+			Landmarks_Graph graph1( prob );
+			gen_lms.compute_lm_graph_set_additive( graph1 );
+			
+			bfws_options( search_prob, bfs_engine, max_novelty, graph1, vm );
+			
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+			
+			plan_stream.close();
+			
+			return 0;
+		}else{
+			std::cout << "Starting search with BFWS-f5-landmarks..." << std::endl;
+			
+			k_BFWS bfs_engine( search_prob );	
 		
-		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+			/**
+			 * Use landmark count instead of goal count
+			 */
+			Gen_Lms_Fwd    gen_lms( search_prob );
+			gen_lms.set_only_goals( false );
+			Landmarks_Graph graph1( prob );
+			gen_lms.compute_lm_graph_set_additive( graph1 );
+			
+			bfws_options( search_prob, bfs_engine, max_novelty, graph1, vm );
+			
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+			
+			plan_stream.close();
+			
+			return 0;
+		}
 
-		plan_stream.close();
-
-		return 0;
 	}
 	else 	if(vm["BFWS-goalcount-only"].as<bool>()){
 		
@@ -419,8 +478,17 @@ int main( int argc, char** argv ) {
 			
 		k_BFWS bfs_engine( search_prob );		      
 		
-		bfws_options( search_prob, bfs_engine, max_novelty, graph );
-				
+		bfs_engine.set_max_novelty( max_novelty );
+		bfs_engine.set_use_novelty( true );
+		bfs_engine.rel_fl_h().ignore_rp_h_value(true);
+		
+		//NIR: engine doesn't own the pointer, need to free at the end
+		Land_Graph_Man* lgm = new Land_Graph_Man( search_prob, &graph);
+		bfs_engine.use_land_graph_manager( lgm );
+		
+		bfs_engine.set_arity( max_novelty, graph.num_landmarks() );
+
+		
 		//Do not use #rp
 		bfs_engine.set_use_rp(false);
 		
@@ -428,151 +496,312 @@ int main( int argc, char** argv ) {
 		
 		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
 
-		plan_stream.close();
-		
-		return 0;
-
 	}
 	else 	if(vm["BFWS-f5"].as<bool>()){
-		
-		std::cout << "Starting search with BFWS-f5..." << std::endl;
+
+		if(vm["use-hff"].as<bool>()){
+			std::cout << "Starting search with BFWS-f5 hff..." << std::endl;
 			
-		k_BFWS bfs_engine( search_prob );	
+			k_BFWS_hff bfs_engine( search_prob );
 
-		bfws_options( search_prob, bfs_engine, max_novelty, graph );
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
 		
-		float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
 		
-		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+		}else{
+			std::cout << "Starting search with BFWS-f5..." << std::endl;
+			
+			k_BFWS bfs_engine( search_prob );
 
-		return 0;
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+		
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+		
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+		}
 
 	}
 	else 	if(vm["BFWS-f5-initstate-relevant"].as<bool>()){
-		
-		std::cout << "Starting search with BFWS-f5... R computed once from s0" << std::endl;
-			
-		k_BFWS bfs_engine( search_prob );
-		
-		bfws_options( search_prob, bfs_engine, max_novelty, graph );
-		
-		bfs_engine.set_use_rp_from_init_only( true );
-		
-		float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
-		
-		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
 
-		return 0;
+		if(vm["use-hff"].as<bool>()){
+			std::cout << "Starting search with BFWS-f5... from hff, R computed once from s0" << std::endl;
+			
+			k_BFWS_hff bfs_engine( search_prob );
+			
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+			
+			bfs_engine.set_use_rp_from_init_only( true );
+			
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+		}else{
+			std::cout << "Starting search with BFWS-f5... R computed once from s0" << std::endl;
+			
+			k_BFWS bfs_engine( search_prob );
+			
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+			
+			bfs_engine.set_use_rp_from_init_only( true );
+			
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+		}
 
 	}
 	else 	if(vm["k-BFWS"].as<bool>()){
-		
-		std::cout << "Starting search with k-BFWS..." << std::endl;
-			
-		k_BFWS bfs_engine( search_prob );	
-		
-		bfws_options( search_prob, bfs_engine, max_novelty, graph );
-		bfs_engine.set_use_novelty_pruning( true );
-		
-		float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
-		
-		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
 
-		plan_stream.close();
+		if(vm["use-hff"].as<bool>()){
+			std::cout << "Starting search with k-BFWS hff..." << std::endl;
+			
+			k_BFWS_hff bfs_engine( search_prob );	
 		
-		return 0;
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+			bfs_engine.set_use_novelty_pruning( true );
+		
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+		
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+			plan_stream.close();
+		
+			return 0;
+		}else{
+			std::cout << "Starting search with k-BFWS..." << std::endl;
+			
+			k_BFWS bfs_engine( search_prob );	
+		
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+			bfs_engine.set_use_novelty_pruning( true );
+		
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+		
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+			plan_stream.close();
+		
+			return 0;
+		}
 	}
 	else 	if(vm["k-M-BFWS"].as<int>()){
+
+		if(vm["use-hff"].as<bool>()){
+			std::cout << "Starting search with k-M-BFWS hff..." << std::endl;     
+
+			k_BFWS_M_hff bfs_engine( search_prob );	
+
+			unsigned m_value = vm["k-M-BFWS"].as<int>();
+
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+
+			bfs_engine.set_use_novelty_pruning( true );
+			bfs_engine.set_M( m_value );
 		
-		std::cout << "Starting search with k-M-BFWS..." << std::endl;     
-
-		k_BFWS_M bfs_engine( search_prob );	
-
-		unsigned m_value = vm["k-M-BFWS"].as<int>();
-
-		bfws_options( search_prob, bfs_engine, max_novelty, graph );
-
-		bfs_engine.set_use_novelty_pruning( true );
-		bfs_engine.set_M( m_value );
-		
-		std::cout << "New M-Value: " << m_value << std::endl;
+			std::cout << "New M-Value: " << m_value << std::endl;
 			
-		float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
 			
-		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
 
-		plan_stream.close();
+			plan_stream.close();
 		
-		return 0;
+			return 0;
+		}else{
+			std::cout << "Starting search with k-M-BFWS..." << std::endl;     
+
+			k_BFWS_M bfs_engine( search_prob );	
+
+			unsigned m_value = vm["k-M-BFWS"].as<int>();
+
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+
+			bfs_engine.set_use_novelty_pruning( true );
+			bfs_engine.set_M( m_value );
+		
+			std::cout << "New M-Value: " << m_value << std::endl;
+			
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+			plan_stream.close();
+		
+			return 0;
+		}
 	}
 	else 	if(vm["k-M-C-BFWS"].as<int>()){
 		
-		std::cout << "Starting search with k-M-C-BFWS..." << std::endl;
+		if(vm["use-hff"].as<bool>()){
+			std::cout << "Starting search with k-M-C-BFWS hff..." << std::endl;
 		
-		k_BFWS_Consistency_M bfs_engine( search_prob );	
+			k_BFWS_Consistency_M_hff bfs_engine( search_prob );	
 
-		unsigned m_value = vm["k-M-C-BFWS"].as<int>();
+			unsigned m_value = vm["k-M-C-BFWS"].as<int>();
 
-		bfws_options( search_prob, bfs_engine, max_novelty, graph );
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
 		
-		bfs_engine.set_use_novelty_pruning( true );
-		bfs_engine.set_M( m_value );
+			bfs_engine.set_use_novelty_pruning( true );
+			bfs_engine.set_M( m_value );
 	
-		std::cout << "New M-Value: " << m_value << std::endl;
+			std::cout << "New M-Value: " << m_value << std::endl;
 			
-		float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
 			
-		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
 		
-		plan_stream.close();
+			plan_stream.close();
 		
-		return 0;
+			return 0;
+		}else{
+			std::cout << "Starting search with k-M-C-BFWS..." << std::endl;
+		
+			k_BFWS_Consistency_M bfs_engine( search_prob );	
+
+			unsigned m_value = vm["k-M-C-BFWS"].as<int>();
+
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+		
+			bfs_engine.set_use_novelty_pruning( true );
+			bfs_engine.set_M( m_value );
+	
+			std::cout << "New M-Value: " << m_value << std::endl;
+			
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+		
+			plan_stream.close();
+		
+			return 0;
+		}
 	}
 	else 	if(vm["k-C-BFWS"].as<bool>()){
-		
-		std::cout << "Starting search with k-C-BFWS..." << std::endl;
+
+		if(vm["use-hff"].as<bool>()){
+			std::cout << "Starting search with k-C-BFWS hff..." << std::endl;
 			
-		k_BFWS_Consistency bfs_engine( search_prob );	
+			k_BFWS_Consistency_hff bfs_engine( search_prob );	
 
-		bfws_options( search_prob, bfs_engine, max_novelty, graph );
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
 
-		bfs_engine.set_use_novelty_pruning( true );	       
+			bfs_engine.set_use_novelty_pruning( true );	       
 
-		float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
 		
-		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
 
-		plan_stream.close();
+			plan_stream.close();
 		
-		return 0;
+			return 0;
+		}else{
+			std::cout << "Starting search with k-C-BFWS..." << std::endl;
+			
+			k_BFWS_Consistency bfs_engine( search_prob );	
+
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+
+			bfs_engine.set_use_novelty_pruning( true );	       
+
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+		
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+
+			plan_stream.close();
+		
+			return 0;
+		}
 	}else 	if(vm["1-C-BFWS"].as<bool>()){
-		
-		std::cout << "Starting search with 1-C-BFWS..." << std::endl;
+
+		if(vm["use-hff"].as<bool>()){
+			std::cout << "Starting search with 1-C-BFWS hff..." << std::endl;
 			
-		k_BFWS_Consistency bfs_engine( search_prob );	
+			k_BFWS_Consistency_hff bfs_engine( search_prob );	
 
-		max_novelty = 1;
+			max_novelty = 1;
 
-		bfws_options( search_prob, bfs_engine, max_novelty, graph );
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
 
-		bfs_engine.set_use_novelty_pruning( true );
+			bfs_engine.set_use_novelty_pruning( true );
 		
-		float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
 		
-		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
 
-		plan_stream.close();
+			plan_stream.close();
 		
-		return 0;
+			return 0;
+		}else{
+			std::cout << "Starting search with 1-C-BFWS..." << std::endl;
+			
+			k_BFWS_Consistency bfs_engine( search_prob );	
+
+			max_novelty = 1;
+
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+
+			bfs_engine.set_use_novelty_pruning( true );
+		
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+		
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+			plan_stream.close();
+		
+			return 0;
+		}
 	}
 	else if(vm["1-BFWS"].as<bool>()){
+		
+		if(vm["use-hff"].as<bool>()){
+			std::cout << "Starting search with 1-BFWS hff..." << std::endl;
+	
+			k_BFWS_hff bfs_engine( search_prob );	
+
+			max_novelty = 1;
+
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+
+			bfs_engine.set_use_novelty_pruning( true );
+		
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+		
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+			return 0;
+		}else{
+			std::cout << "Starting search with 1-BFWS..." << std::endl;
+	
+			k_BFWS bfs_engine( search_prob );	
+
+			max_novelty = 1;
+
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+
+			bfs_engine.set_use_novelty_pruning( true );
+		
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+		
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+			return 0;
+		}
+        }
+	else if(vm["Poly-Seq-BFWS"].as<bool>()){
+
+		/**
+		 * RUN 1-BFWS
+		 */
+		
 	        std::cout << "Starting search with 1-BFWS..." << std::endl;
 	
 		k_BFWS bfs_engine( search_prob );	
 
 		max_novelty = 1;
 
-		bfws_options( search_prob, bfs_engine, max_novelty, graph );
+		bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
 
 		bfs_engine.set_use_novelty_pruning( true );
 		
@@ -580,8 +809,56 @@ int main( int argc, char** argv ) {
 		
 		std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
 
-		plan_stream.close();
+		/**
+		 * RUN 2-C-BFWS if not solved
+		 */
+		max_novelty = 2;
 		
+		if( !found_plan ){
+
+			std::cout << "Starting search with k-C-BFWS..." << std::endl;
+			
+			k_BFWS_Consistency bfs_engine( search_prob );	
+
+			bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+
+			bfs_engine.set_use_novelty_pruning( true );	       
+
+			float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+		
+			std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+			plan_stream.close();
+		}
+
+		/**
+		 * RUN 2-M-BFWS, M=1,2,4,8,16,32 if not solved
+		 */
+		
+		if( !found_plan ){
+			unsigned m_value = 1;
+			for(int i = 0; i < 6; i++ ){
+
+				std::cout << "Starting search with k-M-BFWS..." << std::endl;     
+
+				k_BFWS_M bfs_engine( search_prob );	
+
+				bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+
+				bfs_engine.set_use_novelty_pruning( true );
+				bfs_engine.set_M( m_value );
+		
+				std::cout << "New M-Value: " << m_value << std::endl;
+			
+				float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			
+				std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+
+				plan_stream.close();
+				m_value = m_value * 2;
+				if( found_plan ) break;
+			}
+		}
 		return 0;
         }
  
@@ -591,75 +868,149 @@ int main( int argc, char** argv ) {
 
     //Fast First Consistency
     if( vm["DUAL-C-BFWS"].as<bool>() and !found_plan)	{
-	    std::cout << "Starting search with 1-C-BFWS..." << std::endl;
+
+	    if(vm["use-hff"].as<bool>()){
+		    std::cout << "Starting search with 1-C-BFWS hff..." << std::endl;
 	
-	    k_BFWS_Consistency bfs_engine( search_prob );	
+		    k_BFWS_Consistency_hff bfs_engine( search_prob );	
 
-	    max_novelty = 1;
+		    max_novelty = 1;
 	    
-	    bfws_options( search_prob, bfs_engine, max_novelty, graph );
+		    bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
 
-	    bfs_engine.set_use_novelty_pruning( true );
+		    bfs_engine.set_use_novelty_pruning( true );
 	    	
-	    float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+		    float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
 		
-	    std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+		    std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+	    }else{
+		    std::cout << "Starting search with 1-C-BFWS..." << std::endl;
+	
+		    k_BFWS_Consistency bfs_engine( search_prob );	
+
+		    max_novelty = 1;
+	    
+		    bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+
+		    bfs_engine.set_use_novelty_pruning( true );
+	    	
+		    float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+		
+		    std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+	    }
     }
     //Fast First (FOR AAAI-17)
     if( vm["DUAL-BFWS"].as<bool>() and !found_plan)	{
-            std::cout << "Starting search with 1-BFWS..." << std::endl;
+
+	    if(vm["use-hff"].as<bool>()){
+		    std::cout << "Starting search with 1-BFWS hff..." << std::endl;
 	
-	    k_BFWS bfs_engine( search_prob );	
+		    k_BFWS_hff bfs_engine( search_prob );	
 	    
-	    max_novelty = 1;
+		    max_novelty = 1;
 
-	    bfws_options( search_prob, bfs_engine, max_novelty, graph );
+		    bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+		    bfs_engine.set_use_novelty_pruning( true );
+	    
+		    float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+	    
+		    std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+	    }else{
+		    std::cout << "Starting search with 1-BFWS..." << std::endl;
+	
+		    k_BFWS bfs_engine( search_prob );	
+	    
+		    max_novelty = 1;
 
-	    bfs_engine.set_use_novelty_pruning( true );
+		    bfws_options( search_prob, bfs_engine, max_novelty, graph, vm );
+		    bfs_engine.set_use_novelty_pruning( true );
 	    
-	    float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+		    float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
 	    
-	    std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+		    std::cout << "Fast-BFS search completed in " << bfs_t << " secs" << std::endl;
+	    }
     }
 	
 	
     if(!found_plan && (vm["DUAL-BFWS"].as<bool>() or vm["DUAL-C-BFWS"].as<bool>() ) ){
-	    std::cout << "Starting search with BFWS(novel,land,h_ff)..." << std::endl;
+	    if(vm["use-hff"].as<bool>()){
+		    std::cout << "Starting search with BFWS(novel,land,h_ff)..." << std::endl;
 
-	    BFWS_w_hlm_hadd bfs_engine( search_prob );	
-	    bfs_engine.h4().ignore_rp_h_value(true);
+		    BFWS_w_hlm_hff bfs_engine( search_prob );	
+		    bfs_engine.h4().ignore_rp_h_value(true);
 
-	    /**
-	     * Use landmark count instead of goal count
-	     */
-	    Gen_Lms_Fwd    gen_lms( search_prob );
-	    gen_lms.set_only_goals( false );	   
-	    Landmarks_Graph graph1( prob );
-	    gen_lms.compute_lm_graph_set_additive( graph1 );
+		    /**
+		     * Use landmark count instead of goal count
+		     */
+		    Gen_Lms_Fwd    gen_lms( search_prob );
+		    gen_lms.set_only_goals( false );	   
+		    Landmarks_Graph graph1( prob );
+		    gen_lms.compute_lm_graph_set_additive( graph1 );
 	 
-	    Land_Graph_Man lgm( search_prob, &graph1);
-	    bfs_engine.use_land_graph_manager( &lgm );
+		    Land_Graph_Man lgm( search_prob, &graph1);
+		    bfs_engine.use_land_graph_manager( &lgm );
 
-	    std::cout << "Landmarks found: " << graph1.num_landmarks() << std::endl;
-	    std::cout << "Landmarks_Edges found: " << graph1.num_landmarks_and_edges() << std::endl;
+		    std::cout << "Landmarks found: " << graph1.num_landmarks() << std::endl;
+		    std::cout << "Landmarks_Edges found: " << graph1.num_landmarks_and_edges() << std::endl;
 
-	    max_novelty = vm["max_novelty"].as<int>(); 
+		    max_novelty = vm["max_novelty"].as<int>(); 
 			
-	    bfs_engine.set_arity( max_novelty, graph1.num_landmarks_and_edges() );
+		    bfs_engine.set_arity( max_novelty, graph1.num_landmarks_and_edges() );
 
-	    //NIR: Approximate the domain of #r counter, so we can initialize the novelty table, making sure we've got
-	    //     space for novelty > 1 tuples 
-	    H_Add_Rp_Fwd hadd( search_prob );
-	    float h_init=0;
-	    const aptk::State* s_0 = search_prob.init();
-	    hadd.eval( *s_0, h_init );
+		    //NIR: Approximate the domain of #r counter, so we can initialize the novelty table, making sure we've got
+		    //     space for novelty > 1 tuples
+		    float h_init=0;
+		    unsigned h_val=0;
+		    Classic_FF_H_Max hff( search_prob );
+		    const aptk::State* s_0 = search_prob.init();
+		    hff.eval( *s_0, h_val );
+		    if ( h_val == std::numeric_limits<unsigned>::max() ) h_init = std::numeric_limits<float>::max();
+		    else h_init = (float) h_val;
+		    
+		    bfs_engine.set_arity_2( max_novelty,  h_init );
+
+		    found_plan = false;
+		    float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+			
+		    std::cout << "BFS search completed in " << bfs_t << " secs" << std::endl;
+	    }else{
+		    std::cout << "Starting search with BFWS(novel,land,h_(add)ff)..." << std::endl;
+
+		    BFWS_w_hlm_hadd bfs_engine( search_prob );	
+		    bfs_engine.h4().ignore_rp_h_value(true);
+
+		    /**
+		     * Use landmark count instead of goal count
+		     */
+		    Gen_Lms_Fwd    gen_lms( search_prob );
+		    gen_lms.set_only_goals( false );	   
+		    Landmarks_Graph graph1( prob );
+		    gen_lms.compute_lm_graph_set_additive( graph1 );
+	 
+		    Land_Graph_Man lgm( search_prob, &graph1);
+		    bfs_engine.use_land_graph_manager( &lgm );
+
+		    std::cout << "Landmarks found: " << graph1.num_landmarks() << std::endl;
+		    std::cout << "Landmarks_Edges found: " << graph1.num_landmarks_and_edges() << std::endl;
+
+		    max_novelty = vm["max_novelty"].as<int>(); 
+			
+		    bfs_engine.set_arity( max_novelty, graph1.num_landmarks_and_edges() );
+
+		    //NIR: Approximate the domain of #r counter, so we can initialize the novelty table, making sure we've got
+		    //     space for novelty > 1 tuples 
+		    H_Add_Rp_Fwd hadd( search_prob );
+		    float h_init=0;
+		    const aptk::State* s_0 = search_prob.init();
+		    hadd.eval( *s_0, h_init );
 	    
-	    bfs_engine.set_arity_2( max_novelty,  h_init );
+		    bfs_engine.set_arity_2( max_novelty,  h_init );
 
-	    found_plan = false;
-	    float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
+		    found_plan = false;
+		    float bfs_t = do_search( bfs_engine, prob, plan_stream, found_plan );
 			
-	    std::cout << "BFS search completed in " << bfs_t << " secs" << std::endl;	
+		    std::cout << "BFS search completed in " << bfs_t << " secs" << std::endl;
+	    }
 	
     }	
 	

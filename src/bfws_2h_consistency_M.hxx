@@ -79,10 +79,16 @@ public:
 		std::vector< aptk::Action_Idx > app_set;
 		this->problem().applicable_set_v2( *(head->state()), app_set );
 
+	        //Eval RP if needed for the expanded node
+		this->eval_rp( head );
+
 
 		for (unsigned i = 0; i < app_set.size(); ++i ) {
 			int a = app_set[i];
 
+			float a_cost = this->problem().cost( *(head->state()), a );
+
+			if( head->gn() + a_cost > this->m_max_depth ) continue;
 
 			State *succ = nullptr; 
 						

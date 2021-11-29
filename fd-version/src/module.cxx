@@ -29,10 +29,15 @@ BOOST_PYTHON_MODULE( libbfws )
 	.def( "solve", &BFWS::solve )
 	.def_readwrite( "parsing_time", &BFWS::m_parsing_time )
 	.def_readwrite( "ignore_action_costs", &BFWS::m_ignore_action_costs )
+	.def_readwrite( "anytime", &BFWS::m_anytime )
 	.def_readwrite( "log_filename", &BFWS::m_log_filename )
 	.def_readwrite( "search", &BFWS::m_search_alg )
         .def_readwrite( "m_value", &BFWS::m_M )
 	.def_readwrite( "max_novelty", &BFWS::m_max_novelty )
+    	.def_readwrite( "plan_filename", &BFWS::m_plan_filename )
+        .def_readwrite( "found_plan", &BFWS::m_found_plan )
+        .def_readwrite( "plan_cost", &BFWS::m_cost )
+        .def_readwrite( "cost_bound", &BFWS::m_cost_bound )	    	    
 	;
 }
 

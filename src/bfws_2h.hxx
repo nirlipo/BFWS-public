@@ -54,6 +54,7 @@ public:
 		: m_state( s ), m_parent( parent ), m_action(action), m_g( 0 ), m_g_unit(0), m_h1(0), m_h2(0), m_r(0), m_partition(0), m_M(0), m_land_consumed(NULL), m_land_unconsumed(NULL), m_rp_fl_vec(NULL), m_rp_fl_set(NULL), m_relaxed_deadend(false) {
 		m_g = ( parent ? parent->m_g + cost : 0.0f);
 		m_g_unit = ( parent ? parent->m_g_unit + 1 : 0);
+		update_hash();
 	}
 	
 	virtual ~Node() {
@@ -134,7 +135,7 @@ public:
 	}
 	
 	void			print( std::ostream& os ) const {
-		os << "{@ = " << this << ", s = " << m_state << ", parent = " << m_parent << ", g(n) = ";
+		os << "{@ = " << this << ", s = " << m_state << ", parent = "<<", action_id = "  << m_action << ", g(n) = " ;
 		os << m_g << ", h1(n) = " << m_h1 << ", h2(n) = " << m_h2 << ", r(n) = " << m_r  << "}";
 	}
 
@@ -155,14 +156,17 @@ public:
 		return (m_action == o.m_action) && ( *(m_parent->m_state) == *(o.m_parent->m_state) );
 	}
 
-	size_t      hash() const { return m_state ? m_state->hash() : m_hash; }
+	size_t      hash() const { return  m_hash; }
 
 	void        update_hash() {
-		Hash_Key hasher;
-		hasher.add( m_action );
-		if ( m_parent != NULL )
-			hasher.add( m_parent->state()->fluent_vec() );
-		m_hash = (size_t)hasher;
+		if ( m_parent != NULL ){
+			Hash_Key hasher(m_parent->state()->hash());
+			hasher.add( m_action );
+			m_hash = (size_t)hasher;
+		}		       
+		else{
+			m_hash = m_state->hash();
+		}
 	}
 
 public:
@@ -203,7 +207,7 @@ public:
 	typedef         aptk::agnostic::Landmarks_Graph_Manager<Search_Model>   Landmarks_Graph_Manager;
 
 	BFWS_2H( 	const Search_Model& search_problem ) 
-	: m_problem( search_problem ), m_exp_count(0), m_gen_count(0), m_dead_end_count(0), m_open_repl_count(0),m_max_depth( infty ), m_max_novelty(1), m_time_budget(infty), m_lgm(NULL), m_max_h2n(no_such_index), m_max_r(no_such_index), m_verbose( true ),  m_use_novelty(true), m_use_novelty_pruning(false), m_use_rp(true), m_use_rp_from_init_only(false) {	
+		: m_problem( search_problem ), m_exp_count(0), m_gen_count(0), m_dead_end_count(0), m_open_repl_count(0),m_max_depth( infty ), m_max_novelty(1), m_time_budget(infty), m_lgm(NULL), m_max_h2n(no_such_index), m_max_r(no_such_index), m_verbose( true ),  m_use_novelty(true), m_use_novelty_pruning(false), m_use_rp(true), m_use_rp_from_init_only(false) {	
 		m_first_h = new First_Heuristic( search_problem );
 		m_second_h = new Second_Heuristic( search_problem );
 		m_relevant_fluents_h = new Relevant_Fluents_Heuristic( search_problem );
@@ -243,8 +247,10 @@ public:
 		m_relevant_fluents_h->ignore_rp_h_value(true);
 		m_relevant_fluents_h->eval( *s, h, po, rel_plan  );
 
-		if( h == std::numeric_limits<unsigned>::max() ) //rel_plan infty
+		if( h == std::numeric_limits<unsigned>::max() ) { //rel_plan infty
 			n->relaxed_deadend() = true;
+			return;
+		}
 		
 
 #ifdef DEBUG 		
@@ -317,31 +323,6 @@ public:
 		if(m_use_rp)
 		  set_relplan( this->m_root, this->m_root->state() );
 
-		//if using the landmark manager to count goals or landmarks
-		if(m_lgm){				
-			m_lgm->apply_state( m_root->state()->fluent_vec(), m_root->land_consumed(), m_root->land_unconsumed() );
-
-			eval(m_root);
-
-			if(m_use_rp)
-			  eval_relevant_fluents(m_root);	
-
-			if(m_use_novelty)
-			    eval_novel( m_root );				
-				
-			m_root->undo_land_graph( m_lgm );
-		}
-		else{		
-			eval(m_root);
-
-			if(m_use_rp)
-			  eval_relevant_fluents(m_root);
-			
-			if(m_use_novelty)
-			    eval_novel( m_root );				
-
-		}
-
 		if( m_root->relaxed_deadend() ){ //rel_plan infty
 #ifdef DEBUG
 			if ( m_verbose ) {
@@ -352,6 +333,35 @@ public:
 			return;;
 		}
 		
+				
+		//if using the landmark manager to count goals or landmarks
+		if(m_lgm){				
+			m_lgm->apply_state( m_root->state()->fluent_vec(), m_root->land_consumed(), m_root->land_unconsumed() );
+
+			eval(m_root);
+
+			if(m_use_rp){
+				eval_rp(m_root);
+				eval_relevant_fluents(m_root);	
+			}
+			if(m_use_novelty)
+			    eval_novel( m_root );				
+				
+			m_root->undo_land_graph( m_lgm );
+		}
+		else{		
+			eval(m_root);
+				
+			if(m_use_rp){
+				eval_rp(m_root);
+				eval_relevant_fluents(m_root);	
+			}
+			
+			if(m_use_novelty)
+			    eval_novel( m_root );				
+
+		}
+
 
 		
 
@@ -384,11 +394,11 @@ public:
 
 				//If state hasn't been generated yet, update counter progressing the state of the parent
 				if( !candidate->has_state() && has_cond_eff ){
-					candidate->parent()->state()->progress_lazy_state(  m_problem.task().actions()[ candidate->action() ] );	
+					//	candidate->parent()->state()->progress_lazy_state(  m_problem.task().actions()[ candidate->action() ] );	
 
-					m_lgm->apply_action( candidate->parent()->state(), candidate->action(), candidate->land_consumed(), candidate->land_unconsumed() );
-
-					candidate->parent()->state()->regress_lazy_state( m_problem.task().actions()[ candidate->action() ] );
+					 m_lgm->apply_action( candidate->parent()->state(), candidate->action(), candidate->land_consumed(), candidate->land_unconsumed() );
+					
+					//candidate->parent()->state()->regress_lazy_state( m_problem.task().actions()[ candidate->action() ] );
 		
 				}else{
 					//update the counter with current state
@@ -402,7 +412,18 @@ public:
 		//Count land/goal unachieved
 		m_second_h->eval( *(candidate->state()), candidate->h2n());
 		
+		
+		if(candidate->h2n() < m_max_h2n ){
+			m_max_h2n = candidate->h2n();
+			m_max_r = 0;
+			if ( m_verbose ) {
+				std::cout << "--[" << m_max_h2n  <<" / " << m_max_r <<"]--" << std::endl;				
+			}
+		}
 
+	}
+       
+	void eval_rp( Search_Node* candidate){		
 		//If relevant fluents are in use
 		if(m_use_rp && !m_use_rp_from_init_only){
 			//if land/goal counter has decreased, then update relevant fluents
@@ -420,17 +441,8 @@ public:
 				
 			}
 		}
-		
-		if(candidate->h2n() < m_max_h2n ){
-			m_max_h2n = candidate->h2n();
-			m_max_r = 0;
-			if ( m_verbose ) {
-				std::cout << "--[" << m_max_h2n  <<" / " << m_max_r <<"]--" << std::endl;				
-			}
-		}
 
 	}
-
 
 	unsigned  rp_fl_achieved( Search_Node* n ){
 	       unsigned count = 0;
@@ -544,14 +556,29 @@ public:
 		std::vector< aptk::Action_Idx > app_set;
 		this->problem().applicable_set_v2( *(head->state()), app_set );
 
+		//Eval RP if needed for the expanded node
+		eval_rp( head );
+		if( head->relaxed_deadend() ){ //rel_plan infty
+#ifdef DEBUG
+			if ( m_verbose ) {
+				std::cout << "h_add is infinite" << std::endl;
+			}
+#endif
+			inc_dead_end();					
+			return;
+		}
 
 		for (unsigned i = 0; i < app_set.size(); ++i ) {
 			int a = app_set[i];
+			
+			float a_cost = m_problem.cost( *(head->state()), a );
+
+			if( head->gn() + a_cost > m_max_depth ) continue;
 
 			//Lazy state generation
-			State *succ = nullptr; 
-						
-			Search_Node* n = new Search_Node( succ, m_problem.cost( *(head->state()), a ), a, head, m_problem.num_actions()  );			
+			State *succ = nullptr;
+
+			Search_Node* n = new Search_Node( succ, a_cost, a, head, m_problem.num_actions()  );			
 			
 			#ifdef DEBUG
 			if ( m_verbose ) {
@@ -577,7 +604,8 @@ public:
 			}
 
 			if(m_use_rp)
-			  eval_relevant_fluents(n);
+				//if(n->h2n() == head->h2n())
+				eval_relevant_fluents(n);
 			
 			if(m_use_novelty){
 			    eval_novel(n);
@@ -594,7 +622,7 @@ public:
 				    }
 			    
 			}
-						       
+		
 #ifdef DEBUG
 			if ( m_verbose )
 				std::cout << "Inserted into OPEN" << std::endl;

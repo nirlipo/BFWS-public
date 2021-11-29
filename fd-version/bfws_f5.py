@@ -26,18 +26,18 @@ def main( domain_file, problem_file, output, cost_bound = -1 ) :
 	task.plan_filename = output
 
 	# NIR: search alg
-	task.search = "DUAL-BFWS"
+	task.search = "BFWS-f5"
 
 	# NIR: set cost bound
 	if cost_bound != -1:
-		task.cost_bound = cost_bound + 0.1
+			task.cost_bound = cost_bound + 0.1
 
 	# NIR: Set Max novelty to 2
 	#task.max_novelty = 2
 
 	# NIR: Set M to 32
 	#task.m_value = 32
-	
+        
 	# NIR: Comment line below to deactivate profiling
 	#yep.start( 'bfws.prof' )
         

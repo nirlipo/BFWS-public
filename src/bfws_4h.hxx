@@ -56,6 +56,7 @@ public:
 		m_g_unit = ( parent ? parent->m_g_unit + 1.0f : 0.0f);
 		m_po = NULL;
 		m_po2 = NULL;
+		update_hash();
 	}
 	
 	virtual ~Node() {
@@ -205,14 +206,17 @@ public:
 		return (m_action == o.m_action) && ( *(m_parent->m_state) == *(o.m_parent->m_state) );
 	}
 
-	size_t      hash() const { return m_state ? m_state->hash() : m_hash; }
+	size_t      hash() const { return m_hash; }
 
 	void        update_hash() {
-		Hash_Key hasher;
-		hasher.add( m_action );
-		if ( m_parent != NULL )
-			hasher.add( m_parent->state()->fluent_vec() );
-		m_hash = (size_t)hasher;
+		if ( m_parent != NULL ){
+			Hash_Key hasher(m_parent->state()->hash());
+			hasher.add( m_action );
+			m_hash = (size_t)hasher;
+		}		       
+		else{
+			m_hash = m_state->hash();
+		}
 	}
 
 public:
@@ -379,11 +383,11 @@ public:
 			if (candidate->action() != no_op){
 				const bool has_cond_eff = !(m_problem.task().actions()[ candidate->action() ]->ceff_vec().empty());
 				if( !candidate->has_state() && has_cond_eff ){
-					candidate->parent()->state()->progress_lazy_state(  m_problem.task().actions()[ candidate->action() ] );	
+					//candidate->parent()->state()->progress_lazy_state(  m_problem.task().actions()[ candidate->action() ] );	
 
 					m_lgm->apply_action( candidate->parent()->state(), candidate->action(), candidate->land_consumed(), candidate->land_unconsumed() );
 
-					candidate->parent()->state()->regress_lazy_state( m_problem.task().actions()[ candidate->action() ] );
+					//candidate->parent()->state()->regress_lazy_state( m_problem.task().actions()[ candidate->action() ] );
 		
 				}else{
 					
@@ -526,6 +530,9 @@ public:
 
 		for (unsigned i = 0; i < app_set.size(); ++i ) {
 			int a = app_set[i];
+
+			float a_cost = m_problem.cost( *(head->state()), a );
+			if( head->gn() + a_cost > m_B ) continue;
 
 			//bool is_helpful = po.isset(a) or po2.isset(a);
 			bool is_helpful = po2.isset(a); 

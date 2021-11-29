@@ -376,9 +376,9 @@ public:
 		}
 	
 	}
+	void                    print_values( std::ostream& os ) const { m_base_heuristic.print_values( os ); }
 
 	void ignore_rp_h_value(bool b) {m_ignore_rp_h_value = b;}
-
 protected:
 
 	Bit_Array&		actions_seen() { return m_act_seen; }
@@ -386,6 +386,7 @@ protected:
 	Fluent_Queue&		fluents_pending() { return m_pending_fluents; }
 	Bit_Array&		init_fluents() { return m_init_fluents; }
 
+		
 	bool	extract_best_supporters_for( const Fluent_Vec& C, std::vector<const Action*>& relaxed_plan ) {
 		for ( unsigned k = 0; k < C.size(); k++ ) {
 	
@@ -505,6 +506,8 @@ public:
 	bool is_relaxed_plan_relevant( unsigned p ) { return m_plan_extractor.is_relaxed_plan_relevant(p); }
 
 	unsigned value( unsigned p ){ return m_base_heuristic.value(p); }
+
+	void                    print_values( std::ostream& os ) const { m_base_heuristic.print_values( os ); }
 protected:
 
 	Primary_Heuristic					m_base_heuristic;
