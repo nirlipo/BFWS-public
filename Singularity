@@ -75,15 +75,17 @@ From: ubuntu:focal
     ## The runscript is called whenever the container is used to solve
     ## an instance.
 
-    PLANNER=$1
-    DOMAINFILE=$2
-    PROBLEMFILE=$3
-    PLANFILE=$4
-
+    # PLANNER=$1
+    # DOMAINFILE=$2
+    # PROBLEMFILE=$3
+    # PLANFILE=$4
 
     ## Call your planner using FD-parser.
     #/planner/BFWS/fd-version/bfws_anytime_fd_singularity.py $DOMAINFILE $PROBLEMFILE $PLANFILE
-    $PLANNER $DOMAINFILE $PROBLEMFILE $PLANFILE
+    #$PLANNER $DOMAINFILE $PROBLEMFILE $PLANFILE
+
+    ## Use arguments, e.g. from planutils manifest.json
+    $@
 
 ## Update the following fields with meta data about your submission.
 ## Please use the same field names and use only one line for each value.
